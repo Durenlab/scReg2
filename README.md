@@ -4,7 +4,7 @@ This package still in beta, please feel free to e-mail me for any question about
 email: fchang[at]clemson.edu
 
 # FULL Tutorial
-[scReg2](https://screg2.readthedocs.io/en/latest/function.html)
+[scReg2](https://screg2.readthedocs.io/en/latest/index.html)
 
 # Install
 ``` bash
