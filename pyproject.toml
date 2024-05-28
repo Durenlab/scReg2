@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "scReg2"
-version = "0.0.99"
-description = "make_scReg2 project"
+version = "0.1.00"
+description = "scReg2: integrate RNA and ATAC dimention reduction with batch remove"
 authors = ["Cham <fchang@clemson.edu>"]
 readme = "README.md"
 

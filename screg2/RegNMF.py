@@ -114,6 +114,8 @@ def RegNMF(rna_data, atac_data, batch_type, Meta_data=None, K=100, feature_cutpe
         Maximum number of iterations for NMF. Default is 40.
     copy : str, optional
         Specify 'rna' or 'atac' to choose which data to copy results into. Default is 'rna'.
+    simple : bool
+        Use simple reduction method. Defalt is True.
 
     Returns:
     --------
