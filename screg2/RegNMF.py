@@ -6,6 +6,8 @@ from . import core
 from scipy.sparse import csc_matrix, csr_matrix, find
 import psutil
 import os 
+import scanpy.external as sce
+from muon import atac as ac
 from anndata import AnnData
 from scipy import sparse
 
@@ -39,9 +41,25 @@ def tfidf(X):
     idf = np.log(1 + (X.shape[0]/(1+X.sum(axis = 0))))
     #idf[idf == np.inf] = 0
     return tf.multiply(idf.A1)
+
+
+def simple_integrate(rna_adata, atac_adata, batch_type, key_added='scReg_reduction'):
+    sc.tl.pca(rna_adata, n_comps=15)
+    sce.pp.harmony_integrate(rna_adata, batch_type)
+    rna_adata.obsm['X_pca_norm']=((rna_adata.obsm['X_pca_harmony'] - rna_adata.obsm['X_pca_harmony'].mean(axis=0)) / rna_adata.obsm['X_pca_harmony'].std(axis=0))
+
+    sc.tl.pca(atac_adata, n_comps=15)
+    sce.pp.harmony_integrate(atac_adata, batch_type)
+    atac_adata.obsm['X_pca_norm']=((atac_adata.obsm['X_pca_harmony'] - atac_adata.obsm['X_pca_harmony'].mean(axis=0)) / atac_adata.obsm['X_pca_harmony'].std(axis=0))
+
+    H=np.vstack((atac_adata.obsm['X_pca_norm'].T,rna_adata.obsm['X_pca_norm'].T))
+    rna_adata.obsm['scReg_reduction']=H.T
+    atac_adata.obsm['scReg_reduction']=H.T
+
+    return H
     
 
-def RegNMF_h5(h5_file, barcodes=None):
+def RegNMF_h5(h5_file, barcodes=None, simple=True):
     """
     Perform Coupled Non-negative Matrix Factorization (NMF) on RNA and ATAC data from h5 file. 
 
@@ -72,7 +90,7 @@ def RegNMF_h5(h5_file, barcodes=None):
     return adata
     
 
-def RegNMF(rna_data, atac_data, batch_type, Meta_data=None, K=100, feature_cutperc=0.01, key_added="scReg_reduction", maxiter=100, copy='rna', TFIDF=False, normalize=False):
+def RegNMF(rna_data, atac_data, batch_type, Meta_data=None, K=100, feature_cutperc=0.01, key_added="scReg_reduction", maxiter=100, TFIDF=False, normalize=False, simple = True):
     """
     Perform Coupled Non-negative Matrix Factorization (NMF) on RNA and ATAC data.
 
@@ -85,7 +103,7 @@ def RegNMF(rna_data, atac_data, batch_type, Meta_data=None, K=100, feature_cutpe
     batch_type : str
         Type of batch information in Meta_data.
     Meta_data : pd.DataFrame, optional
-        Metadata containing batch information. Default is None.
+        Metadata containing batch information. Default is None: in this case we will use rna_data.obs as Meta_data.
     K : int, optional
         Number of components for NMF. Default is 100.
     feature_cutperc : float, optional
@@ -104,24 +122,28 @@ def RegNMF(rna_data, atac_data, batch_type, Meta_data=None, K=100, feature_cutpe
     """
     if isinstance(rna_data,AnnData) and isinstance(atac_data,AnnData):
         if TFIDF:
-            atac_data.layers['norm'] = tfidf(atac_data.X).tocsr()
-            atac_data.X = atac_data.layers['norm']
+            ac.pp.binarize(atac_adata)
+            sc.pp.filter_genes(atac_adata, min_cells=500)
+            ac.pp.tfidf(atac_adata, scale_factor=1e4)
         if normalize:
-            rna_data.layers['norm'] = normalize_scaling_default(rna_data.X).tocsr()
-            rna_data.X = atac_data.layers['norm']
-            atac_data.layers['norm'] = normalize_scaling_default(atac_data.X).tocsr()
-            atac_data.X = atac_data.layers['norm']
+            sc.pp.normalize_total(rna_data, target_sum=1e4)
+            sc.pp.log1p(rna_data, base=2)
 
-        if Meta_data is None:
-            scReg_reduction = RegNMF_Matrix(E=rna_data.X, O=atac_data.X, Meta_data=rna_data.obs, batch_type=batch_type, K=K, feature_cutperc=feature_cutperc, maxiter=maxiter, TFIDF=TFIDF, normalize=normalize)
+            #rna_data.layers['norm'] = normalize_scaling_default(rna_data.X).tocsr()
+            #rna_data.X = atac_data.layers['norm']
+            #atac_data.layers['norm'] = normalize_scaling_default(atac_data.X).tocsr()
+            #atac_data.X = atac_data.layers['norm']
+
+        if simple:
+            rna_data, atac_data = simple_integrate(rna_data, atac_data, batch_type=batch_type, key_added=key_added)
         else:
-            scReg_reduction = RegNMF_Matrix(E=rna_data.X, O=atac_data.X, Meta_data=Meta_data, batch_type=batch_type, K=K, feature_cutperc=feature_cutperc, maxiter=maxiter)
-
-        if copy=='rna':
+            if Meta_data is None:
+                scReg_reduction = RegNMF_Matrix(E=rna_data.X, O=atac_data.X, Meta_data=rna_data.obs, batch_type=batch_type, K=K, feature_cutperc=feature_cutperc, maxiter=maxiter, TFIDF=TFIDF, normalize=normalize)
+            else:
+                scReg_reduction = RegNMF_Matrix(E=rna_data.X, O=atac_data.X, Meta_data=Meta_data, batch_type=batch_type, K=K, feature_cutperc=feature_cutperc, maxiter=maxiter)
             rna_data.obsm[key_added] = scReg_reduction['H'].T
+            atac_data.obsm[key_added] = scReg_reduction['H'].T
     
-        else:
-            rna_data.obsm[key_added] = scReg_reduction['H'].T
         return rna_data, atac_data
 
 

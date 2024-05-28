@@ -13,7 +13,6 @@ Welcome to project's documentation!
 
    installation
    usage
-   api_reference
    function
 
 Indices and tables
