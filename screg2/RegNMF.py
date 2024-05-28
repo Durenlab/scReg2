@@ -56,7 +56,7 @@ def simple_integrate(rna_adata, atac_adata, batch_type, key_added='scReg_reducti
     rna_adata.obsm['scReg_reduction']=H.T
     atac_adata.obsm['scReg_reduction']=H.T
 
-    return H
+    return rna_adata, atac_adata
     
 
 def RegNMF_h5(h5_file, barcodes=None, simple=True):
